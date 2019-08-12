@@ -1,3 +1,274 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
-Resources: {}
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  mainRDS:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      BackupRetentionPeriod: 1
+      DBSubnetGroupName: !Ref mainRDSSubnetGroup
+      Engine: aurora
+      EngineMode: serverless
+      MasterUsername: root
+      MasterUserPassword: password
+      ScalingConfiguration:
+        AutoPause: false
+        MinCapacity: 2
+        MaxCapacity: 256
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !Ref mainRDSSecurityGroup
+  mainRDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Database ${ResourceName} VPC Subnets
+        - ResourceName: mainRDS
+      SubnetIds:
+        - !Ref mainVPCPrivateSubnet1
+        - !Ref mainVPCPrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Database ${ResourceName} VPC Subnets
+            - ResourceName: mainRDS
+  mainRDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Database Security Group
+      SecurityGroupIngress:
+        CidrIp: 0.0.0.0/0
+        FromPort: 3306
+        IpProtocol: tcp
+        ToPort: 3306
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Database ${ResourceName} VPC Security Group
+            - ResourceName: mainRDS
+      VpcId: !Ref mainVPC
+  mainVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName}
+            - ResourceName: mainVPC
+  mainVPCPrivateSubnet1:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 0
+        - !Cidr
+          - 10.0.0.0/16
+          - 4
+          - 14
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Private Subnet 1
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPrivateSubnet2:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 1
+        - !Cidr
+          - 10.0.0.0/16
+          - 4
+          - 14
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Private Subnet 2
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPublicSubnet1:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 2
+        - !Cidr
+          - 10.0.0.0/16
+          - 4
+          - 14
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Public Subnet 1
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPublicSubnet2:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
+      CidrBlock: !Select
+        - 3
+        - !Cidr
+          - 10.0.0.0/16
+          - 4
+          - 14
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Public Subnet 2
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPrivateSubnet1NatGateway:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt mainVPCPrivateSubnet1NatGatewayEIP.AllocationId
+      SubnetId: !Ref mainVPCPublicSubnet1
+  mainVPCPrivateSubnet1NatGatewayEIP:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  mainVPCPrivateSubnet1NatGatewayRoute:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref mainVPCPrivateSubnet1NatGateway
+      RouteTableId: !Ref mainVPCPrivateSubnet1RouteTable
+  mainVPCPrivateSubnet1RouteTable:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Private Subnet 1 Route Table
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPrivateSubnet1RouteTableAssociation:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref mainVPCPrivateSubnet1RouteTable
+      SubnetId: !Ref mainVPCPrivateSubnet1
+  mainVPCPrivateSubnet2NatGateway:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt mainVPCPrivateSubnet2NatGatewayEIP.AllocationId
+      SubnetId: !Ref mainVPCPublicSubnet2
+  mainVPCPrivateSubnet2NatGatewayEIP:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  mainVPCPrivateSubnet2NatGatewayRoute:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref mainVPCPrivateSubnet2NatGateway
+      RouteTableId: !Ref mainVPCPrivateSubnet2RouteTable
+  mainVPCPrivateSubnet2RouteTable:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Private Subnet 2 Route Table
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPrivateSubnet2RouteTableAssociation:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref mainVPCPrivateSubnet2RouteTable
+      SubnetId: !Ref mainVPCPrivateSubnet2
+  mainVPCPublicSubnetsInternetGatewayAttachment:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref mainVPCPublicSubnetsInternetGateway
+      VpcId: !Ref mainVPC
+  mainVPCPublicSubnetsInternetGateway:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Public Subnets Internet Gateway
+            - ResourceName: mainVPC
+  mainVPCPublicSubnetsInternetGatewayRoute:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref mainVPCPublicSubnetsInternetGateway
+      RouteTableId: !Ref mainVPCPublicSubnetsRouteTable
+  mainVPCPublicSubnetsRouteTable:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - Stack ${StackTagName} Environment ${EnvironmentTagName} Virtual Network ${ResourceName} Public Subnets Route Table
+            - ResourceName: mainVPC
+      VpcId: !Ref mainVPC
+  mainVPCPublicSubnet1RouteTableAssociation:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref mainVPCPublicSubnetsRouteTable
+      SubnetId: !Ref mainVPCPublicSubnet1
+  mainVPCPublicSubnet2RouteTableAssociation:
+    Metadata:
+      StackeryManaged: true
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref mainVPCPublicSubnetsRouteTable
+      SubnetId: !Ref mainVPCPublicSubnet2
+Parameters:
+  StackTagName:
+    Type: String
+    Description: Stack Name (injected by Stackery at deployment time)
+  EnvironmentTagName:
+    Type: String
+    Description: Environment Name (injected by Stackery at deployment time)
